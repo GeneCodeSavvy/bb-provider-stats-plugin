@@ -1,0 +1,29 @@
+.capacity-switcher {
+  --capacity-raised: var(--popover, var(--card));
+  --capacity-text: var(--sidebar-foreground, var(--foreground));
+  --capacity-muted: var(--muted-foreground);
+  --capacity-line: var(--sidebar-border, var(--border));
+  --capacity-hover: var(--sidebar-accent, var(--muted));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  color: var(--capacity-text);
+  font: inherit;
+}
+.capacity-card { overflow: hidden; border: 1px solid var(--capacity-line); border-radius: var(--radius, .625rem); background: var(--capacity-raised); box-shadow: 0 1rem 2.5rem color-mix(in srgb, var(--background) 68%, transparent); }
+.capacity-header { padding: .625rem; border-bottom: 1px solid var(--capacity-line); }
+.capacity-header strong { display: block; font-size: .75rem; font-weight: 650; line-height: 1.2; }
+.capacity-header span { color: var(--capacity-muted); font-size: .625rem; line-height: 1.2; }
+.capacity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.capacity-cell { min-width: 0; padding: .625rem; }
+.capacity-grid > .capacity-cell:nth-child(2n) { border-left: 1px solid var(--capacity-line); }
+.capacity-grid + .capacity-grid, .capacity-accounts { border-top: 1px solid var(--capacity-line); }
+.capacity-heading { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: .375rem; color: var(--capacity-muted); font-size: .625rem; line-height: 1.2; }
+.capacity-heading strong { flex: none; color: var(--capacity-text); font-size: .75rem; font-weight: 650; }
+.capacity-account .capacity-heading strong { font-size: .625rem; font-weight: 650; }
+.capacity-rail { display: block; height: .25rem; margin: .625rem 0; overflow: hidden; border-radius: 999px; background: var(--muted); }
+.capacity-rail > span { display: block; height: 100%; background: var(--muted-foreground); }
+.capacity-reset { color: var(--capacity-muted); font-size: .5625rem; line-height: 1.25; }
+.capacity-account { width: 100%; border: 0; padding: .625rem; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.capacity-account:hover { background: var(--capacity-hover); }
+.capacity-account:disabled { cursor: default; background: var(--capacity-hover); }
+.capacity-message { grid-column: 1 / -1; margin: 0; padding: .625rem; color: var(--capacity-muted); font-size: .625rem; }
