@@ -1,130 +1,37 @@
-# Codex Account Switcher
+# Provider Stats
 
-Save the current `~/.codex/auth.json` in named local account slots and activate a slot from BB's sidebar footer.
+A BB plugin for two related jobs: switching local AI-provider logins and seeing subscription/API usage headroom in one place.
 
-It does not merge subscriptions, calculate usage, or change an active Codex session. Start a new Codex thread after switching.
+## Providers
 
-1. Run `codex login`, then save that login in **Codex switcher**.
-2. Run `codex logout`, then `codex login` for the next account and save it too.
-3. Choose an account using the users icon at the lower-left of BB's sidebar.
+| Provider | Account switching | Usage |
+| --- | --- | --- |
+| Codex | `~/.codex/auth.json` (or `CODEX_HOME`) + saved local slots; existing `~/.codex-personal` / `~/.codex-work` profiles remain supported | BB native `system.usageLimits()` |
+| Claude Code | `~/.claude/.credentials.json` + saved local slots | BB native `system.usageLimits()` |
+| Grok Build | `~/.grok/auth.json` (or `GROK_HOME`) + saved local slots | Grok subscription + task-usage endpoints |
+| OpenCode Go | API-key providers are usage-only | `OPENCODE_API_KEY` against Zen Go usage |
+| OpenRouter | API-key providers are usage-only | `OPENROUTER_API_KEY` against credits |
 
-A BB plugin that keeps a todo list. It shows every surface a plugin can own:
+Account credentials are copied only by the BB host entry, into the plugin host data directory. The server stores labels and timestamps, not credential contents. Switching uses an atomic temporary-file rename and affects new provider sessions only.
 
-- `server.ts` — the backend: a todo store in `bb.storage.kv`, RPC methods
-  for the page, a `bb codex-capacity` CLI command, a setting, and a realtime signal
-  that keeps every open page current.
-- `app.tsx` — the frontend: an **Example todos** page in the left sidebar
-  (`app.slots.navPanel`) built from the vendored components.
-- `skills/example-todos/SKILL.md` — a skill that tells agents how to keep the list
-  with `bb codex-capacity`. BB imports it into agent threads automatically.
+Claude Code may keep credentials in macOS Keychain. BB can still report Claude usage in that case, but this plugin deliberately does not read/write the Keychain; account switching is enabled only when Claude Code's credential file exists.
 
-Try it: install the plugin, open **Example todos** in the sidebar, then run
-`bb codex-capacity add "Ship it"` in a terminal. The page updates at once.
+## Design notes
 
-## UI components
+The account model follows the safety lessons used by Tokscale: credential sources remain provider-owned, quota viewing is read-only, saved accounts are explicit local snapshots, and active state is derived from the actual current credential rather than trusting persisted UI metadata. Provider-specific behavior is isolated behind the host contract so additional providers can be added without reworking the UI.
 
-`components/ui/` is vendored source you own (the shadcn model): edit the
-files freely — they never update out from under you. Add more from the BB
-component registry (the full shadcn set, version-matched to your BB install
-via the pinned ref in `components.json`):
+Usage values are provider-reported. Codex and Claude use BB's native quota API. Grok, OpenCode Go, and OpenRouter are fetched from their vendor endpoints and normalized to `{ label, usedPercent, resetsAt }` windows.
 
-```
-npx shadcn add @bb/select @bb/table
-```
+## Development
 
-Run `npm install` once before `bb plugin build` — the vendored components'
-npm deps bundle into your dist. React, and BB-shimmed packages like the
-radix portal primitives and `sonner` (`import { toast } from "sonner"`
-reaches BB's own toaster), are provided by the BB app at runtime and never
-bundled. Every shimmed package is declared in `devDependencies` at the
-host's version so those imports typecheck; keep them there (never in
-`dependencies`, which would bundle a second copy), and `bb plugin types`
-repins them alongside the SDK. Ship `dist/` (npm tarball or committed for
-git installs) so people installing your plugin never need npm.
-
-## Manifest
-
-`package.json` is the plugin manifest. Notable fields:
-
-- `bb.server` — backend entry (required).
-- `bb.app` — frontend entry. Delete it, `app.tsx`, `components/`,
-  `hooks/`, and `lib/` for a headless plugin.
-- `bb.skills` — skill roots; omitted here, so BB reads `skills/`. Each
-  directory with a `SKILL.md` is one skill, named after the directory.
-- `bb.name` and `bb.description` — required human-facing identity.
-- `bb.branding` — required; declare `icon` as a BB icon name or a
-  plugin-relative compact SVG, or declare `logo.light` (with optional
-  `logo.dark`). Logo assets must be relative `.svg`, `.png`, or
-  `.webp` files.
-- `engines.bb` — supported bb app version range.
-- `engines.bbPluginSdk` — the lowest plugin SDK you need (scaffold:
-  `>=0.4.21`). BB reads this as a floor, not a ceiling: a later
-  SDK in the same major still loads your plugin.
-- `dependencies` — every package your source imports that BB does not provide.
-  `bb plugin build` inlines them into `dist/`, and git installs resolve this
-  list alone, so a build-required package here rather than in
-  `devDependencies` is what keeps your plugin installable. `devDependencies`
-  is for types and tooling only (BB shims React, the portal primitives, and
-  `@get-bb/plugin-sdk` at runtime — never bundle them).
-
-Run `bb plugin build` before publishing git/npm installs. It writes
-`dist/server.js` + `server.meta.json` and `app.js` / `app.css` /
-`app.meta.json`. Each `*.meta.json` stamps SDK major/version,
-`artifactFormatVersion`, `pluginId`, `pluginVersion`, and
-`builtWith` so managed installs can verify the artifacts.
-
-## Install
-
-From this directory (`bb plugin new` already ran the install; a fresh clone
-needs it):
-
-```
+```bash
 npm install
+bb plugin build
 bb plugin install .
 ```
 
-After editing sources, reload:
+After changes:
 
-```
+```bash
 bb plugin reload codex-capacity
 ```
-
-Or let `bb plugin dev` rebuild and reload on every save.
-
-## Configure
-
-```
-bb plugin config codex-capacity
-bb plugin config codex-capacity set showDone false
-bb plugin reload codex-capacity
-```
-
-## Types & API reference
-
-The plugin API ships as the npm package `@get-bb/plugin-sdk`, pinned to an
-exact version in `devDependencies` (`0.4.21` — the SDK of the BB
-that scaffolded this plugin). After `npm install`, the full surface is on disk
-at:
-
-```
-node_modules/@get-bb/plugin-sdk/bundled-types/bb-plugin-sdk.d.ts      # backend
-node_modules/@get-bb/plugin-sdk/bundled-types/bb-plugin-sdk-app.d.ts  # frontend
-```
-
-Your editor and `tsc` resolve `@get-bb/plugin-sdk` there through ordinary node
-resolution — no path mapping. These are readable declarations: open them for an
-exact signature.
-
-The SDK surface grows with every BB release, so the pin has to track the BB you
-actually run:
-
-```
-bb plugin types          # sync this plugin's SDK surface to the running BB
-bb plugin types --check  # CI: fail when it does not match
-```
-
-Ask BB to write plugins for you: the `bb-plugin-authoring` skill documents
-the whole surface with examples.
-
-Confused by the API, or need something the types don't explain? Clone the BB
-repo and read the source: <https://github.com/get-bb/bb>.

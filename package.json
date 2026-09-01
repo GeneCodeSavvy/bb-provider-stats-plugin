@@ -7,10 +7,10 @@
     "bbPluginSdk": ">=0.4.21"
   },
   "bb": {
-    "name": "Codex Capacity",
-    "description": "Save and manually switch local Codex login slots.",
+    "name": "Provider Stats",
+    "description": "Switch local AI provider accounts and view quota usage across Codex, Claude Code, Grok, OpenCode Go, and OpenRouter.",
     "branding": {
-      "icon": "ListTodo"
+      "icon": "Users"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
