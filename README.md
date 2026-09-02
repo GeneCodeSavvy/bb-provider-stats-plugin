@@ -6,11 +6,13 @@ A BB plugin for two related jobs: switching local AI-provider logins and seeing 
 
 | Provider | Account switching | Usage |
 | --- | --- | --- |
-| Codex | `~/.codex/auth.json` (or `CODEX_HOME`) + saved local slots; existing `~/.codex-personal` / `~/.codex-work` profiles remain supported | BB native `system.usageLimits()` |
+| Codex | `~/.codex/auth.json` + saved local slots | BB native `system.usageLimits()` |
 | Claude Code | `~/.claude/.credentials.json` + saved local slots | BB native `system.usageLimits()` |
 | Grok Build | `~/.grok/auth.json` (or `GROK_HOME`) + saved local slots | Grok subscription + task-usage endpoints |
 | OpenCode Go | API-key providers are usage-only | `OPENCODE_API_KEY` against Zen Go usage |
 | OpenRouter | API-key providers are usage-only | `OPENROUTER_API_KEY` against credits |
+
+For Codex, the live credential location is intentionally fixed to `~/.codex/auth.json`. The plugin does not use `CODEX_HOME`, `~/.codex-personal`, `~/.codex-work`, or any alternate Codex profile directory. Saved account slots are private snapshots in the plugin host data directory; activating a slot atomically replaces only `~/.codex/auth.json`.
 
 Account credentials are copied only by the BB host entry, into the plugin host data directory. The server stores labels and timestamps, not credential contents. Switching uses an atomic temporary-file rename and affects new provider sessions only.
 

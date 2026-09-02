@@ -3,11 +3,6 @@ import { z } from "zod";
 
 export const providerIdSchema = z.enum(["codex", "claude", "grok"]);
 
-const legacyProfileSchema = z.object({
-  id: z.enum(["legacy-personal", "legacy-work"]),
-  label: z.string(),
-}).strict();
-
 const usageWindowSchema = z.object({
   label: z.string(),
   usedPercent: z.number(),
@@ -20,7 +15,6 @@ export const accountHostContract = defineRpcContract({
     output: z.object({
       present: z.boolean(),
       activeSlotId: z.string().nullable(),
-      legacyProfiles: z.array(legacyProfileSchema),
     }).strict(),
   },
   saveCurrent: {
@@ -28,7 +22,7 @@ export const accountHostContract = defineRpcContract({
     output: z.object({ saved: z.boolean() }).strict(),
   },
   activate: {
-    input: z.object({ provider: providerIdSchema, id: z.string().regex(/^(legacy-personal|legacy-work|[a-f0-9-]{8})$/) }).strict(),
+    input: z.object({ provider: providerIdSchema, id: z.string().regex(/^[a-f0-9-]{8}$/) }).strict(),
     output: z.object({ activated: z.boolean() }).strict(),
   },
   remove: {

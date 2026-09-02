@@ -19,7 +19,7 @@ const usageSchema = z.object({
   windows: z.array(windowSchema),
 });
 const accountSchema = z.object({
-  id: z.string(), provider: providerIdSchema, label: z.string(), savedAt: z.string(), active: z.boolean(), managed: z.boolean(),
+  id: z.string(), provider: providerIdSchema, label: z.string(), savedAt: z.string(), active: z.boolean(),
 });
 const providerSchema = z.object({
   id: z.enum([...switchableProviderIds, ...usageOnlyProviderIds]),
@@ -115,10 +115,10 @@ export default async function plugin(bb: BbPluginApi) {
 
   const readAccounts = async (): Promise<Account[]> => {
     const current = await bb.storage.kv.get<Account[]>(ACCOUNT_KEY);
-    if (current) return current;
+    if (current) return current.map(({ id, provider, label, savedAt, active }) => ({ id, provider, label, savedAt, active }));
     const legacy = (await bb.storage.kv.get<Array<{ id: string; label: string; savedAt: string; active: boolean }>>("accounts")) ?? [];
     if (!legacy.length) return [];
-    const migrated = legacy.map((item) => ({ ...item, provider: "codex" as const, active: false, managed: true }));
+    const migrated = legacy.map((item) => ({ ...item, provider: "codex" as const, active: false }));
     await bb.storage.kv.set(ACCOUNT_KEY, migrated);
     return migrated;
   };
@@ -148,13 +148,10 @@ export default async function plugin(bb: BbPluginApi) {
     const accountViews = new Map<SwitchableProviderId, Account[]>();
     for (const provider of switchableProviderIds) accountViews.set(provider, []);
     for (const { provider, state } of states) {
-      const own = stored.filter((item) => item.provider === provider).map((item) => ({ ...item, active: state.activeSlotId === item.id }));
-      if (provider === "codex") {
-        for (const profile of state.legacyProfiles) own.unshift({
-          id: profile.id, provider: "codex", label: profile.label, savedAt: "", active: state.activeSlotId === profile.id, managed: false,
-        });
-      }
-      accountViews.set(provider, own);
+      accountViews.set(
+        provider,
+        stored.filter((item) => item.provider === provider).map((item) => ({ ...item, active: state.activeSlotId === item.id })),
+      );
     }
     const [codex, claude, grok, openCode, openRouter] = await Promise.all([
       usageFor("codex", hostId), usageFor("claude", hostId), usageFor("grok", hostId), extraUsage("opencode-go"), extraUsage("openrouter"),
@@ -177,7 +174,7 @@ export default async function plugin(bb: BbPluginApi) {
       const hostId = await localHostId();
       const id = randomUUID().slice(0, 8);
       await host.call("saveCurrent", { provider, id }, { hostId });
-      const account: Account = { id, provider, label, savedAt: new Date().toISOString(), active: true, managed: true };
+      const account: Account = { id, provider, label, savedAt: new Date().toISOString(), active: true };
       const accounts = (await readAccounts()).map((item) => item.provider === provider ? { ...item, active: false } : item);
       await publish([...accounts, account]);
       return account;
@@ -185,11 +182,8 @@ export default async function plugin(bb: BbPluginApi) {
     accounts_activate: async ({ provider, id }) => {
       const hostId = await localHostId();
       const accounts = await readAccounts();
-      const stored = accounts.find((item) => item.provider === provider && item.id === id);
-      const legacy = provider === "codex" && (id === "legacy-personal" || id === "legacy-work");
-      if (!stored && !legacy) throw new Error("Account slot was not found.");
+      if (!accounts.some((item) => item.provider === provider && item.id === id)) throw new Error("Account slot was not found.");
       await host.call("activate", { provider, id }, { hostId });
-      if (legacy) return { id, provider, label: id === "legacy-personal" ? "codex-personal" : "codex-work", savedAt: "", active: true, managed: false };
       const updated = accounts.map((item) => item.provider === provider ? { ...item, active: item.id === id } : item);
       await publish(updated);
       return updated.find((item) => item.provider === provider && item.id === id)!;

@@ -9,10 +9,7 @@ import type { z } from "zod";
 type ProviderId = z.infer<typeof providerIdSchema>;
 
 const providerAuthPath = (provider: ProviderId) => {
-  if (provider === "codex") {
-    const codexHome = process.env.CODEX_HOME?.trim();
-    return join(codexHome || join(homedir(), ".codex"), "auth.json");
-  }
+  if (provider === "codex") return join(homedir(), ".codex", "auth.json");
   if (provider === "claude") return join(homedir(), ".claude", ".credentials.json");
   const grokHome = process.env.GROK_HOME?.trim();
   return join(grokHome || join(homedir(), ".grok"), "auth.json");
@@ -20,9 +17,6 @@ const providerAuthPath = (provider: ProviderId) => {
 
 const slotPath = (dataDir: string, provider: ProviderId, id: string) =>
   join(dataDir, "accounts", provider, id, "credentials.json");
-
-const legacyCodexPath = (id: "legacy-personal" | "legacy-work") =>
-  join(homedir(), id === "legacy-personal" ? ".codex-personal" : ".codex-work", "auth.json");
 
 async function exists(path: string) {
   try { await access(path, constants.R_OK); return true; } catch { return false; }
@@ -43,19 +37,6 @@ async function activeSlotId(dataDir: string, provider: ProviderId, currentPath: 
     if (await sameFile(currentPath, slotPath(dataDir, provider, id))) return id;
   }
   return null;
-}
-
-async function legacyProfiles(currentPath: string) {
-  const profiles: Array<{ id: "legacy-personal" | "legacy-work"; label: string }> = [];
-  for (const [id, label] of [["legacy-personal", "codex-personal"], ["legacy-work", "codex-work"]] as const) {
-    if (await exists(legacyCodexPath(id))) profiles.push({ id, label });
-  }
-  if (profiles.length && await exists(currentPath)) {
-    for (const profile of profiles) {
-      if (await sameFile(currentPath, legacyCodexPath(profile.id))) return { profiles, active: profile.id };
-    }
-  }
-  return { profiles, active: null as string | null };
 }
 
 async function replaceCredential(source: string, target: string) {
@@ -131,10 +112,10 @@ export default experimental_defineHostEntry({
   handlers: {
     providerState: async ({ provider }, context) => {
       const currentPath = providerAuthPath(provider);
-      const slot = await activeSlotId(context.experimental_paths.dataDir, provider, currentPath);
-      if (provider !== "codex") return { present: await exists(currentPath), activeSlotId: slot, legacyProfiles: [] };
-      const legacy = await legacyProfiles(currentPath);
-      return { present: await exists(currentPath), activeSlotId: slot ?? legacy.active, legacyProfiles: legacy.profiles };
+      return {
+        present: await exists(currentPath),
+        activeSlotId: await activeSlotId(context.experimental_paths.dataDir, provider, currentPath),
+      };
     },
     saveCurrent: async ({ provider, id }, context) => {
       const source = providerAuthPath(provider);
@@ -145,11 +126,10 @@ export default experimental_defineHostEntry({
       return { saved: true };
     },
     activate: async ({ provider, id }, context) => {
-      const source = id === "legacy-personal" || id === "legacy-work"
-        ? provider === "codex" ? legacyCodexPath(id) : ""
-        : slotPath(context.experimental_paths.dataDir, provider, id);
-      if (!source) throw new Error("Legacy profiles are only supported for Codex.");
-      await replaceCredential(source, providerAuthPath(provider));
+      await replaceCredential(
+        slotPath(context.experimental_paths.dataDir, provider, id),
+        providerAuthPath(provider),
+      );
       return { activated: true };
     },
     remove: async ({ provider, id }, context) => {
